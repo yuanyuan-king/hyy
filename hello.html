@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>地图寻点游戏</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        #map {
+            width: 100%;
+            height: 100vh;
+        }
+
+        #popupImage {
+            display: none;
+            max-width: 50%;
+            max-height: 50%;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1000;
+        }
+
+        #healthA, #healthB {
+            position: absolute;
+            top: 10px;
+            z-index: 2000;
+        }
+
+        #healthA {
+            left: 10px;
+        }
+
+        #healthB {
+            right: 10px;
+        }
+
+        #startScreen, #resultScreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.85);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            z-index: 3000;
+        }
+
+        #resultScreen {
+            display: none;
+        }
+
+        #boomImage {
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            display: none;
+            z-index: 2500;
+        }
+
+        button {
+            padding: 12px 24px;
+            font-size: 20px;
+            margin-top: 20px;
+            cursor: pointer;
+        }
+    </style>
+    <script src="https://webapi.amap.com/maps?v=2.0&key=4299709061bbfb232ad9b23fd7a3c6d6"></script>
+    <script src="https://webapi.amap.com/loca?v=2.0.0&key=4299709061bbfb232ad9b23fd7a3c6d6"></script>
+</head>
+<body>
+    <div id="map"></div>
+    <img id="popupImage" src="aaa.jpg" alt="弹出图片" />
+    <div id="healthA"></div>
+    <div id="healthB"></div>
+
+    <div id="startScreen">
+        <h1>地图大战：开局准备！</h1>
+        <button onclick="startGame()">开始游戏</button>
+    </div>
+
+    <div id="resultScreen">
+        <h1 id="winnerText">胜利！</h1>
+        <button onclick="restartGame()">再来一局</button>
+    </div>
+
+    <img id="boomImage" src="boom.gif" />
+
+    <script>
+        let map, markerA, markerB, pointA, pointB;
+        let rockets = [];
+        let healthA = 5, healthB = 5;
+        const fireCooldown = 1000;
+        let lastFireTimeA = 0, lastFireTimeB = 0;
+        const rocketSpeed = 0.002;
+
+        const healthADiv = document.getElementById('healthA');
+        const healthBDiv = document.getElementById('healthB');
+        const boomImg = document.getElementById('boomImage');
+
+        function startGame() {
+            document.getElementById('startScreen').style.display = 'none';
+            initMap();
+            animate();
+        }
+
+        function restartGame() {
+            document.getElementById('resultScreen').style.display = 'none';
+            healthA = 5;
+            healthB = 5;
+            updateHealthBars();
+            document.addEventListener('keydown', keyHandler);
+            resetPoints();
+        }
+
+        function updateHealthBars() {
+            const heartFull = '红心.png';
+            const heartEmpty = '空心.png';
+
+            function getHearts(hp) {
+                let html = '';
+                for (let i = 0; i < 5; i++) {
+                    html += `<img src="${i < hp ? heartFull : heartEmpty}" style="width:24px;height:24px;">`;
+                }
+                return html;
+            }
+
+            healthADiv.innerHTML = getHearts(healthA);
+            healthBDiv.innerHTML = getHearts(healthB);
+        }
+
+        function initMap() {
+            map = new AMap.Map('map', {
+                zoom: 11,
+                center: [103.819419, 36.044262]
+            });
+
+            resetPoints();
+            updateHealthBars();
+            document.addEventListener('keydown', keyHandler);
+        }
+
+        function resetPoints() {
+            const bounds = map.getBounds();
+            const sw = bounds.getSouthWest();
+            const ne = bounds.getNorthEast();
+
+            pointA = [sw.lng + Math.random() * (ne.lng - sw.lng), sw.lat + Math.random() * (ne.lat - sw.lat)];
+            do {
+                pointB = [sw.lng + Math.random() * (ne.lng - sw.lng), sw.lat + Math.random() * (ne.lat - sw.lat)];
+            } while (Math.abs(pointA[0] - pointB[0]) < 0.01 && Math.abs(pointA[1] - pointB[1]) < 0.01);
+
+            if (markerA) markerA.setMap(null);
+            if (markerB) markerB.setMap(null);
+
+            markerA = new AMap.Marker({
+                position: pointA,
+                icon: new AMap.Icon({ image: 'hhh.jpg', size: new AMap.Size(48, 48), imageSize: new AMap.Size(48, 48) }),
+                map: map
+            });
+
+            markerB = new AMap.Marker({
+                position: pointB,
+                icon: new AMap.Icon({ image: 'bbb.jpg', size: new AMap.Size(48, 48), imageSize: new AMap.Size(48, 48) }),
+                map: map
+            });
+        }
+
+        function keyHandler(e) {
+            const step = 0.003;
+            let moved = false;
+
+            switch (e.key.toLowerCase()) {
+                case 'w': pointA[1] += step; moved = true; break;
+                case 's': pointA[1] -= step; moved = true; break;
+                case 'a': pointA[0] -= step; moved = true; break;
+                case 'd': pointA[0] += step; moved = true; break;
+            }
+
+            switch (e.key) {
+                case 'ArrowUp': pointB[1] += step; moved = true; break;
+                case 'ArrowDown': pointB[1] -= step; moved = true; break;
+                case 'ArrowLeft': pointB[0] -= step; moved = true; break;
+                case 'ArrowRight': pointB[0] += step; moved = true; break;
+            }
+
+            if (moved) {
+                markerA.setPosition(pointA);
+                markerB.setPosition(pointB);
+            }
+
+            if (e.code === 'Space' && Date.now() - lastFireTimeA > fireCooldown) {
+                lastFireTimeA = Date.now();
+                fireRocket(pointA.slice(), pointB.slice(), 'A');
+            }
+
+            if (e.code === 'ShiftLeft' && Date.now() - lastFireTimeB > fireCooldown) {
+                lastFireTimeB = Date.now();
+                fireRocket(pointB.slice(), pointA.slice(), 'B');
+            }
+        }
+
+        function fireRocket(from, to, shooter) {
+            const marker = new AMap.Marker({
+                position: from,
+                icon: new AMap.Icon({ image: 'rocket.png', size: new AMap.Size(24, 24), imageSize: new AMap.Size(24, 24) }),
+                map: map
+            });
+
+            rockets.push({ marker, from, to, shooter });
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            rockets = rockets.filter(rocket => {
+                const dx = rocket.to[0] - rocket.from[0];
+                const dy = rocket.to[1] - rocket.from[1];
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                const vx = dx / dist * rocketSpeed;
+                const vy = dy / dist * rocketSpeed;
+
+                rocket.from[0] += vx;
+                rocket.from[1] += vy;
+                rocket.marker.setPosition(rocket.from);
+
+                const target = rocket.shooter === 'A' ? pointB : pointA;
+                const hitDist = AMap.GeometryUtil.distance(rocket.from, target);
+
+                if (hitDist < 1000) {
+                    rocket.marker.setMap(null);
+                    showExplosion(rocket.from);
+                    if (rocket.shooter === 'A') {
+                        healthB--;
+                        updateHealthBars();
+                        if (healthB <= 0) endGame('A');
+                    } else {
+                        healthA--;
+                        updateHealthBars();
+                        if (healthA <= 0) endGame('B');
+                    }
+                    return false;
+                }
+
+                if (Math.abs(rocket.from[0] - rocket.to[0]) < 0.0001 &&
+                    Math.abs(rocket.from[1] - rocket.to[1]) < 0.0001) {
+                    rocket.marker.setMap(null);
+                    return false;
+                }
+
+                return true;
+            });
+        }
+
+        function showExplosion(pos) {
+            const pixel = map.lngLatToContainer(pos);
+            boomImg.style.left = (pixel.x - 30) + 'px';
+            boomImg.style.top = (pixel.y - 30) + 'px';
+            boomImg.style.display = 'block';
+            setTimeout(() => boomImg.style.display = 'none', 600);
+        }
+
+        function endGame(winner) {
+            document.removeEventListener('keydown', keyHandler);
+            document.getElementById('winnerText').textContent = `玩家${winner} 获胜！`;
+            document.getElementById('resultScreen').style.display = 'flex';
+        }
+    </script>
+</body>
+</html>
