@@ -1,2 +1,3 @@
 hello-electron-app filter=lfs diff=lfs merge=lfs -text
 electron.exe filter=lfs diff=lfs merge=lfs -text
+b299262cf8dd92f6c928a1f80e55a213ce866661a3cba870b864b7af26 filter=lfs diff=lfs merge=lfs -text
